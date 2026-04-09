@@ -1,0 +1,99 @@
+package Controlador;
+
+import java.net.URL;
+import java.sql.*;
+import java.util.ResourceBundle;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextField;
+import javafx.scene.input.MouseEvent;
+
+/**
+ * FXML Controller class
+ *
+ * @author Jkur
+ */
+public class AltaLibroController implements Initializable {
+
+    @FXML
+    private TextField txtISBNAltaLibro;
+    @FXML
+    private TextField txtTituloAltaLibro;
+    @FXML
+    private TextField txtAutorAltaLibro;
+    @FXML
+    private Button btnAltaLibro;
+
+    /**
+     * Initializes the controller class.
+     */
+    private Connection getConnection() throws SQLException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver"); 
+            String url = "jdbc:mysql://localhost:3306/bibliotecaGUI";
+            return DriverManager.getConnection(url, "root", "admin1144"); 
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("Error al cargar el driver de MySQL", e);
+        }
+    }
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            System.out.println("Error al cargar el diver de MySQL" + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void altaLibro(MouseEvent event) {
+        String isbn = txtISBNAltaLibro.getText().trim();
+        String titulo = txtTituloAltaLibro.getText().trim();
+        String autor = txtAutorAltaLibro.getText().trim();
+
+        if (isbn.isEmpty() || titulo.isEmpty() || autor.isEmpty()) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Atencion", "Se requiere completar todos los campos.");
+            return;
+        }
+
+        String alta = "INSERT INTO Libros (isbn, titulo, autor) VALUES (?,?,?)";
+
+        // Usamos try-with-resources para que la conexión y el PreparedStatement se cierren solos
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(alta)) {
+
+            ps.setString(1, isbn);
+            ps.setString(2, titulo);
+            ps.setString(3, autor);
+
+            int filas = ps.executeUpdate();
+
+            if (filas > 0) {
+                // Alerta de éxito y limpieza de campos
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Felicidades", "El libro ha sido registrado correctamente.");
+                limpiarCampos();
+            }
+        } catch (SQLException e) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error de Base de Datos", "No se pudo registrar el libro: " + e.getMessage());
+        }
+    } 
+
+
+    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
+
+    // Metodo para limpiar los campos de texto
+    private void limpiarCampos() {
+        txtISBNAltaLibro.clear();
+        txtTituloAltaLibro.clear();
+        txtAutorAltaLibro.clear();
+    }
+}
