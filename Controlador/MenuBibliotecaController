@@ -1,0 +1,360 @@
+package Controlador;
+
+import Modelo.Cliente;
+import Modelo.Libro;
+import Modelo.Reserva;
+
+import java.io.IOException;
+import java.net.URL;
+import java.sql.*;
+import java.util.ResourceBundle;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.input.MouseEvent;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+
+/**
+ * FXML Controller class
+ *
+ * @author alumno
+ */
+public class MenuBibliotecaController implements Initializable {
+
+    @FXML
+    private TextField txtFlitrarDNI;
+    @FXML
+    private ComboBox<String> cbFiltrarAutor;
+
+    @FXML
+    private TableView<Cliente> tblCliente;
+    @FXML
+    private TableColumn<Cliente, String> tcDNICliente;
+    @FXML
+    private TableColumn<Cliente, String> tcNomCliente;
+    @FXML
+    private TableColumn<Cliente, String> tcApelliCliente;
+
+    @FXML
+    private TableView<Libro> tblLibro;
+    @FXML
+    private TableColumn<Libro, String> tcISBNLibro;
+    @FXML
+    private TableColumn<Libro, String> tcTitLibro;
+    @FXML
+    private TableColumn<Libro, String> tcAutorLibro;
+
+    @FXML
+    private TableView<Reserva> tblReservas;
+    @FXML
+    private TableColumn<Reserva, String> tcISBNreserva;
+    @FXML
+    private TableColumn<Reserva, String> tcDNIReserva;
+    @FXML
+    private TableColumn<Reserva, String> tcIniReservas;
+    @FXML
+    private TableColumn<Reserva, String> tcFinReservas;
+
+    @FXML
+    private Button btAltaLibro;
+    @FXML
+    private Button btBajaLibro;
+    @FXML
+    private Button btBajaReserva;
+    @FXML
+    private Button btAltaReserva;
+
+
+    private ObservableList<Cliente> clientes = FXCollections.observableArrayList();
+    private ObservableList<Libro> libros = FXCollections.observableArrayList();
+    private ObservableList<Reserva> reservas = FXCollections.observableArrayList();
+
+    private Connection getConnection() throws SQLException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            String url = "jdbc:mysql://localhost:3306/bibliotecaGUI";
+            return DriverManager.getConnection(url, "root", "admin1144");
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("Error al cargar el driver de MySQL", e);
+        }
+    }
+
+    // --- INITIALIZE: se ejecuta automáticamente al abrir la ventana ---
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+
+        // 1. Decimos a cada columna qué campo del objeto debe mostrar
+        this.tcDNICliente.setCellValueFactory(new PropertyValueFactory<>("dni"));
+        this.tcNomCliente.setCellValueFactory(new PropertyValueFactory<>("nombre"));
+        this.tcApelliCliente.setCellValueFactory(new PropertyValueFactory<>("apellidos"));
+
+        this.tcISBNLibro.setCellValueFactory(new PropertyValueFactory<>("isbn"));
+        this.tcTitLibro.setCellValueFactory(new PropertyValueFactory<>("titulo"));
+        this.tcAutorLibro.setCellValueFactory(new PropertyValueFactory<>("autor"));
+
+        this.tcISBNreserva.setCellValueFactory(new PropertyValueFactory<>("isbn"));
+        this.tcDNIReserva.setCellValueFactory(new PropertyValueFactory<>("dni"));
+        this.tcIniReservas.setCellValueFactory(new PropertyValueFactory<>("fechaInicio"));
+        this.tcFinReservas.setCellValueFactory(new PropertyValueFactory<>("fechaFin"));
+
+        // 2. Cargamos los datos de la BD en las tablas
+        cargarTodo();
+
+        txtFlitrarDNI.textProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                filtrarClientesPorDNI();
+            }
+        });
+
+        cbFiltrarAutor.valueProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                filtrarLibrosPorAutor();
+            }
+        });
+    }
+
+    // --- CARGA TODOS LOS DATOS DE LA BD ---
+    private void cargarTodo() {
+        try {
+            Connection conn = getConnection();
+            cargarClientes(conn);
+            cargarLibros(conn);
+            cargarReservas(conn);
+            cargarAutores(conn);
+            conn.close();
+        } catch (SQLException e) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error", "No se pudieron cargar los datos: " + e.getMessage());
+        }
+    }
+
+    private void cargarClientes(Connection conn) throws SQLException {
+        clientes.clear(); 
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT * FROM clientes");
+        while (rs.next()) {
+            Cliente c = new Cliente(rs.getString("dni"), rs.getString("nombre"), rs.getString("apellidos"));
+            clientes.add(c);
+        }
+        tblCliente.setItems(clientes); // Mostramos la lista en la tabla
+    }
+
+    private void cargarLibros(Connection conn) throws SQLException {
+        libros.clear();
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT * FROM libros");
+        while (rs.next()) {
+            Libro l = new Libro(rs.getString("isbn"), rs.getString("titulo"), rs.getString("autor"));
+            libros.add(l);
+        }
+        tblLibro.setItems(libros);
+    }
+
+    private void cargarReservas(Connection conn) throws SQLException {
+        reservas.clear();
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT * FROM reservas");
+        while (rs.next()) {
+            Reserva r = new Reserva(rs.getString("isbn"), rs.getString("dni"), rs.getString("fecha_inicio"), rs.getString("fecha_fin"));
+            reservas.add(r);
+        }
+        tblReservas.setItems(reservas);
+    }
+
+    private void cargarAutores(Connection conn) throws SQLException {
+        ObservableList<String> autores = FXCollections.observableArrayList();
+        autores.add("Todos"); // Opción por defecto para quitar el filtro
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT DISTINCT autor FROM libros");
+        while (rs.next()) {
+            autores.add(rs.getString("autor"));
+        }
+        cbFiltrarAutor.setItems(autores);
+    }
+
+    // --- FILTRO DE CLIENTES POR DNI ---
+    private void filtrarClientesPorDNI() {
+        String texto = txtFlitrarDNI.getText().toLowerCase().trim();
+
+        // Si el campo está vacío, mostramos todos los clientes
+        if (texto.isEmpty()) {
+            tblCliente.setItems(clientes);
+            return;
+        }
+
+        // Creamos una lista temporal con los clientes que coinciden
+        ObservableList<Cliente> filtrados = FXCollections.observableArrayList();
+        for (Cliente c : clientes) {
+            if (c.getDni().toLowerCase().contains(texto)) {
+                filtrados.add(c);
+            }
+        }
+        tblCliente.setItems(filtrados);
+    }
+
+    // --- FILTRO DE LIBROS POR AUTOR ---
+    private void filtrarLibrosPorAutor() {
+        String autorElegido = cbFiltrarAutor.getValue();
+
+        // Si no hay nada seleccionado o se elige "Todos", mostramos todos
+        if (autorElegido == null || autorElegido.equals("Todos")) {
+            tblLibro.setItems(libros);
+            return;
+        }
+
+        // Creamos una lista temporal con los libros de ese autor
+        ObservableList<Libro> filtrados = FXCollections.observableArrayList();
+        for (Libro l : libros) {
+            if (l.getAutor().equals(autorElegido)) {
+                filtrados.add(l);
+            }
+        }
+        tblLibro.setItems(filtrados);
+    }
+
+    @FXML
+    private void filtrarAutor(MouseEvent event) {
+        filtrarLibrosPorAutor();
+    }
+
+    // Cuando seleccionamos un libro, habilitamos el botón de baja
+    @FXML
+    private void seleccionarLibro(MouseEvent event) {
+        if (tblLibro.getSelectionModel().getSelectedItem() != null) {
+            btBajaLibro.setDisable(false);
+        }
+    }
+
+    // Cuando seleccionamos una reserva, habilitamos el botón de baja
+    @FXML
+    private void seleccionarReserva(MouseEvent event) {
+        if (tblReservas.getSelectionModel().getSelectedItem() != null) {
+            btBajaReserva.setDisable(false);
+        }
+    }
+
+    // Abre la ventana para dar de alta un libro
+    @FXML
+    private void altaLibro(MouseEvent event) {
+        abrirVentana("/vista/AltaLibro.fxml", "Alta de Libro");
+    }
+
+    // Elimina el libro seleccionado de la BD
+    @FXML
+    private void bajaLibro(MouseEvent event) {
+        Libro libro = tblLibro.getSelectionModel().getSelectedItem();
+
+        if (libro == null) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Atención", "Primero selecciona un libro de la tabla.");
+            return;
+        }
+
+        // Pedimos confirmación antes de borrar
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Seguro que quieres eliminar el libro: " + libro.getTitulo() + "?");
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(null) == ButtonType.OK) {
+            try {
+                Connection conn = getConnection();
+                PreparedStatement ps = conn.prepareStatement("DELETE FROM Libros WHERE isbn = ?");
+                ps.setString(1, libro.getIsbn());
+                ps.executeUpdate();
+                conn.close();
+                cargarTodo(); // Recargamos las tablas
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Exito", "Libro eliminado correctamente.");
+            } catch (SQLException e) {
+                mostrarAlerta(Alert.AlertType.ERROR, "Error", "No se pudo eliminar el libro: " + e.getMessage());
+            }
+        }
+    }
+
+    // Abre la ventana para dar de alta una reserva
+    @FXML
+    private void altaReserva(MouseEvent event) {
+        abrirVentana("/vista/AltaReserva.fxml", "Nueva Reserva");
+    }
+
+    // Elimina la reserva seleccionada de la BD
+    @FXML
+    private void bajaReserva(MouseEvent event) {
+        Reserva reserva = tblReservas.getSelectionModel().getSelectedItem();
+
+        if (reserva == null) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Atención", "Primero selecciona una reserva de la tabla.");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Seguro que quieres eliminar la reserva del DNI: " + reserva.getDni() + "?");
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(null) == ButtonType.OK) {
+            try {
+                Connection conn = getConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM reservas WHERE isbn = ? AND dni = ? AND fecha_inicio = ?");
+                ps.setString(1, reserva.getIsbn());
+                ps.setString(2, reserva.getDni());
+                ps.setString(3, reserva.getFechaInicio());
+                ps.executeUpdate();
+                conn.close();
+                cargarTodo();
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Éxito", "Reserva eliminada correctamente.");
+            } catch (SQLException e) {
+                mostrarAlerta(Alert.AlertType.ERROR, "Error", "No se pudo eliminar la reserva: " + e.getMessage());
+            }
+        }
+    }
+
+    private void abrirVentana(String rutaFXML, String titulo) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(rutaFXML));
+            Parent root = loader.load();
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL); // Bloquea la ventana de atrás
+            stage.setTitle(titulo);
+            stage.setScene(new Scene(root));
+            stage.showAndWait(); // Espera a que se cierre
+            cargarTodo(); // Recargamos al volver
+        } catch (IOException ex) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error", "No se pudo abrir: " + rutaFXML);
+        }
+    }
+
+    void closeWindows() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/vista/MenuPrincipal.fxml"));
+            Parent root = loader.load();
+            Stage stage = new Stage();
+            stage.setScene(new Scene(root));
+            stage.show();
+            // Cerramos la ventana actual
+            Stage myStage = (Stage) btAltaLibro.getScene().getWindow();
+            myStage.close();
+        } catch (IOException ex) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error", "No se pudo volver al menú principal.");
+        }
+    }
+
+    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
+}
