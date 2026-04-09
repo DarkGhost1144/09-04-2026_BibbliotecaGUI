@@ -1,0 +1,128 @@
+package Controlador;
+
+import java.net.URL;
+import java.sql.*;
+import java.time.LocalDate;
+import java.util.ResourceBundle;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.input.MouseEvent;
+
+/**
+ * FXML Controller class
+ *
+ * @author Jkur
+ */
+public class AltaReservaController implements Initializable {
+
+    @FXML
+    private ComboBox<String> cbDNInuevaReserva;
+    @FXML
+    private ComboBox<String> cbISBNnuevaReserva;
+    @FXML
+    private DatePicker dtFechaIniNuevaReserva;
+    @FXML
+    private DatePicker dtFechaFinNuevaReserva;
+    @FXML
+    private Button btAltaReserva;
+
+    // --- CONEXIÓN BD ---
+    private Connection getConnection() throws SQLException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            String url = "jdbc:mysql://localhost:3306/bibliotecaGUI";
+            return DriverManager.getConnection(url, "root", "admin1144");
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("Error al cargar el driver de MySQL", e);
+        }
+    }
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        cargarDNIs();
+        cargarISBNs();
+    }
+
+    // Carga los DNIs de clientes en el ComboBox
+    private void cargarDNIs() {
+        ObservableList<String> dnis = FXCollections.observableArrayList();
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT dni FROM clientes")) {
+            while (rs.next()) {
+                dnis.add(rs.getString("dni"));
+            }
+        } catch (SQLException e) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error", "Error al cargar los DNIs: " + e.getMessage());
+        }
+        cbDNInuevaReserva.setItems(dnis);
+    }
+
+    // Carga los ISBNs de libros en el ComboBox
+    private void cargarISBNs() {
+        ObservableList<String> isbns = FXCollections.observableArrayList();
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT isbn FROM libros")) {
+            while (rs.next()) {
+                isbns.add(rs.getString("isbn"));
+            }
+        } catch (SQLException e) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error", "Error al cargar los ISBNs: " + e.getMessage());
+        }
+        cbISBNnuevaReserva.setItems(isbns);
+    }
+
+    @FXML
+    private void altaReserva(MouseEvent event) {
+        String dni = cbDNInuevaReserva.getValue();
+        String isbn = cbISBNnuevaReserva.getValue();
+        LocalDate fechaIni = dtFechaIniNuevaReserva.getValue();
+        LocalDate fechaFin = dtFechaFinNuevaReserva.getValue();
+
+        // Validaciones
+        if (dni == null || isbn == null || fechaIni == null || fechaFin == null) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Atención", "Se requiere completar todos los campos.");
+            return;
+        }
+
+        if (fechaFin.isBefore(fechaIni)) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Atención", "La fecha de fin no puede ser anterior a la fecha de inicio.");
+            return;
+        }
+
+        String alta = "INSERT INTO reservas (isbn, dni, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)";
+        try {
+            Connection conn = getConnection(); 
+            PreparedStatement ps = conn.prepareStatement(alta);
+            ps.setString(1, isbn);
+            ps.setString(2, dni);
+            ps.setString(3, fechaIni.toString());
+            ps.setString(4, fechaFin.toString());
+            int filas = ps.executeUpdate();
+            if (filas > 0) {
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Éxito", "La reserva ha sido registrada correctamente.");
+                limpiarCampos();
+            }
+        } catch (SQLException e) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Error de Base de Datos", "No se pudo registrar la reserva: " + e.getMessage());
+        }
+    }
+
+    private void limpiarCampos() {
+        cbDNInuevaReserva.setValue(null);
+        cbISBNnuevaReserva.setValue(null);
+        dtFechaIniNuevaReserva.setValue(null);
+        dtFechaFinNuevaReserva.setValue(null);
+    }
+
+    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
+}
